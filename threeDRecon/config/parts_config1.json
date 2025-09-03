@@ -54,7 +54,7 @@
     },
     "dilation_func": "default",
     "dilation_kwargs": {
-      "offset": -0.5
+      "offset": 0.5
     }
   },
   {
@@ -70,7 +70,7 @@
     },
     "dilation_func": "default",
     "dilation_kwargs": {
-      "offset": -0.5
+      "offset": 0.5
     }
   },
   {
@@ -107,7 +107,7 @@
     "smoothing_kwargs": null,
     "dilation_func": "default",
     "dilation_kwargs": {
-      "offset": -0.2
+      "offset": 0.2
     }
   },
   {
@@ -116,7 +116,7 @@
     "smoothing_kwargs": null,
     "dilation_func": "default",
     "dilation_kwargs": {
-      "offset": -0.2
+      "offset": 0.2
     }
   },
   {
@@ -132,7 +132,7 @@
     },
     "dilation_func": null,
     "dilation_kwargs": {
-      "offset": -0.5
+      "offset": 0.5
     }
   }
 ]

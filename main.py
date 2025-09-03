@@ -3,7 +3,7 @@ import SimpleITK as sitk
 import trimesh
 import pyvista as pv
 from pathlib import Path
-from threeDRecon import combineGLB, processNii, processMesh
+from threeDRecon import combineGLB2, processNii, processMesh
 
 def parse_info(case_path):
     # id extraction
@@ -27,11 +27,21 @@ def main(case_path):
     # spacing = img.GetSpacing()[::-1]  # (X, Y, Z) → (Z, Y, X)
     
     processed_img = processNii.preprocess(img, label_array)
-    processed_label_array = sitk.GetArrayFromImage(processed_img)
-    processed_spacing = processed_img.GetSpacing()[::-1]
-
-    # get ndarray, return Trimesh scene
-    construct_glb = combineGLB.combine_glb(processed_label_array, processed_spacing)
+    # processed_label_array = sitk.GetArrayFromImage(processed_img)
+    # processed_spacing = processed_img.GetSpacing()[::-1]
+    temp_path = Path(case_path).parent / f"temp.nii.gz"
+    print(f"[INFO] Temporary NIfTI file created: {temp_path}")
+    sitk.WriteImage(processed_img, temp_path)
+    
+    # ===== 라벨 1,2 → 2 =====
+    arr = sitk.GetArrayFromImage(processed_img)
+    arr[(arr == 1) | (arr == 2)] = 2
+    kidney_img = sitk.GetImageFromArray(arr)
+    kidney_img.CopyInformation(processed_img)
+    temp_kidney_path = Path(case_path).parent / f"temp_kidney.nii.gz"
+    sitk.WriteImage(kidney_img, temp_kidney_path)
+    
+    construct_glb = combineGLB2.combine_glb(temp_path, temp_kidney_path)
 
     # 1st smoothing
     print("[INFO] Step1")
@@ -84,5 +94,5 @@ if __name__ == "__main__":
     출력은 결과가 저장된 경로를 반환합니다.
     output = "path/case_0000/3d/obj_A.nii.gz"
     '''
-    case_path = r".\data\case_0002_fallbacktest\mask\segment_A.nii.gz"
+    case_path = r".\data\case_0027\mask\segment_A.nii.gz"
     result = main(case_path)

@@ -7,6 +7,8 @@ from trimesh.sample import sample_surface_even
 import os
 import open3d as o3d
 import pyvista as pv
+import vtk
+from vtk.util import numpy_support
 
 LABELS = {
     "Tumor": 1,
@@ -38,6 +40,34 @@ def mask_to_mesh_fixnormal(mask, spacing=(1.0, 1.0, 1.0)):
     mesh.remove_duplicate_faces()   # 중복된 면 제거
     mesh.merge_vertices()           # 중복된 버텍스 병합
     mesh.fix_normals()              # 노멀 방향 일관성 수정
+    return mesh
+
+def numpy_to_vtk_image(mask: np.ndarray, spacing=(1.0, 1.0, 1.0)):
+    depth_array = mask.astype(np.uint8).ravel(order="F")  # VTK는 Fortran order
+    vtk_data = numpy_support.numpy_to_vtk(depth_array, deep=True, array_type=vtk.VTK_UNSIGNED_CHAR)
+    img = vtk.vtkImageData()
+    img.SetDimensions(mask.shape[::-1])   # (x,y,z) 순서
+    img.SetSpacing(spacing)
+    img.GetPointData().SetScalars(vtk_data)
+    return img
+    
+def mask_to_mesh_vtk(mask, spacing=(1.0, 1.0, 1.0)):
+    # 1) numpy → vtkImageData
+    vtk_img = numpy_to_vtk_image(mask, spacing)
+    
+    # 2) Marching Cubes
+    extractor = vtk.vtkDiscreteMarchingCubes()
+    extractor.SetInputData(vtk_img)
+    extractor.SetValue(0, 1)  # binary mask라면 label=1
+    extractor.Update()
+    polydata = extractor.GetOutput()
+
+    # 3) vtkPolyData → numpy
+    pts = numpy_support.vtk_to_numpy(polydata.GetPoints().GetData())
+    faces = numpy_support.vtk_to_numpy(polydata.GetPolys().GetData()).reshape(-1, 4)[:, 1:]
+
+    # 4) numpy → trimesh
+    mesh = trimesh.Trimesh(vertices=pts, faces=faces, process=False)
     return mesh
 
 def rotate_and_center(scene):
@@ -75,7 +105,7 @@ def combine_glb(label_array, spacing):
 
         try:
             if name in ["Kidney", "Fat"]:   # Kidney/Fat Split (L/R 매핑)
-                mesh = mask_to_mesh_fixnormal(mask, spacing=spacing)
+                mesh = mask_to_mesh_vtk(mask, spacing=spacing)
                 parts = mesh.split(only_watertight=False)
                 if len(parts) != 2:  # 최대 크기 2개 선택
                     parts = sorted(parts, key=lambda m: len(m.faces), reverse=True)
@@ -86,11 +116,11 @@ def combine_glb(label_array, spacing):
                     part.metadata["name"] = part_name
                     scene.add_geometry(part, node_name=part_name)
             elif name in ["Tumor"]:    # Tumor 노멀 재계산
-                mesh = mask_to_mesh_fixnormal(mask, spacing=spacing)
+                mesh = mask_to_mesh_vtk(mask, spacing=spacing)
                 mesh.metadata["name"] = name
                 scene.add_geometry(mesh, node_name=name)
             else:
-                mesh = mask_to_mesh(mask, spacing=spacing)
+                mesh = mask_to_mesh_vtk(mask, spacing=spacing)
                 mesh.metadata["name"] = name
                 scene.add_geometry(mesh, node_name=name)
 
